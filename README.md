@@ -53,7 +53,7 @@ Clone the plugin into the Domoticz `plugins` directory:
 
 ```bash
 cd domoticz/plugins
-git clone https://github.com/MadPatrick/domoticz_apc_ups
+git clone https://github.com/MadPatrick/domoticz_apc_ups apc-ups
 sudo systemctl restart domoticz
 ```
 
