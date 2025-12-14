@@ -4,14 +4,23 @@
 APC UPS Monitoring
 """
 """
-<plugin key="APCUPS" name="APC UPS" author="MadPatrick" version="1.0" externallink="https://github.com/MadPatrick/domoticz_apc_ups">
+<plugin key="APCUPS" name="APC UPS" author="MadPatrick" version="1.2" externallink="https://github.com/MadPatrick/APCUPS">
     <description>
-	<br/><h2>APC UPS plugin</h2>
-        <br/>version: 1.0
+        <br/><h2>APC UPS plugin</h2>
+        version: 1.2
         <br/>
         <br/>ORIGINAL AUTHOR : Joerek van Gaalen
         <br/>https://github.com/jgaalen/domoticz-apc-ups-plugin
         <br/>----------------------------------------------------------------------------------
+        <br/>
+        <br/><h2>= Configuration =</h2>
+        <br/>
+        <b style="padding-right:91px;">Address</b>: Fill in the IP address<br/>
+        <b style="padding-right:115px;">Port</b>: Fill in the port address of the UPS<br/>
+        <b style="padding-right:40px;">Reading Interval </b>: Time for the next refresh<br/>
+        <b style="padding-right:40px;">APC access path </b>: location of the APC software<br/>
+        <b style="padding-right:73px;">Debug Log </b>: do you want Debug loggig On or Off<br/>
+        <br/>
         <br/>
     </description>
     <params>
@@ -19,13 +28,26 @@ APC UPS Monitoring
         <param field="Port" label="Port" width="40px" required="true" default="3551"/>
         <param field="Mode1" label="Reading Interval (sec)" width="40px" required="true" default="10" />
         <param field="Mode2" label="apcaccess path" width="200px" required="true" default="/sbin/apcaccess" />
+        <param field="Mode3" label="Enable Debug Logging" width="75px">
+            <options>
+                <option label="Off" value="0" default="true" />
+                <option label="On" value="1" />
+            </options>
+        </param>
     </params>
 </plugin>
 """
 
 import Domoticz
-import subprocess	#For OS calls
+import subprocess  # For OS calls
 
+# ----------------------------
+# Helper functie voor debug logging
+# ----------------------------
+def DebugLog(message):
+    if Parameters.get("Mode3") == "1":
+        Domoticz.Debug(message)
+        Domoticz.Log("[DEBUG] " + message)  # Schrijft ook naar DELog
 # ----------------------------
 # Values dictionary
 # ----------------------------
@@ -46,8 +68,6 @@ values = {
     'NUMXFERS': {'dname': 'Number of Transfers', 'dunit': 14, 'dtype':243, 'dsubtype':31, 'options':'1;times', 'Used': True},
     'TONBATT': {'dname': 'Time on Battery', 'dunit': 15, 'dtype':243, 'dsubtype':31, 'options':'1;minutes', 'Used': True},
     'CUMONBATT': {'dname': 'Cumulative Time on Battery', 'dunit': 16, 'dtype':243, 'dsubtype':31, 'options':'1;minutes', 'Used': True},
-
-    # Extra velden
     'UPSNAME': {'dname': 'UPS Name', 'dunit': 17, 'dtype':243, 'dsubtype':19, 'Used': False},
     'CABLE': {'dname': 'Cable Type', 'dunit': 18, 'dtype':243, 'dsubtype':19, 'Used': False},
     'FIRMWARE': {'dname': 'Firmware', 'dunit': 19, 'dtype':243, 'dsubtype':19, 'Used': False},
@@ -59,11 +79,6 @@ values = {
     'LOTRANS': {'dname': 'Low Transfer Voltage', 'dunit': 25, 'dtype':243, 'dsubtype':8, 'options':'1;V', 'Used': True},
     'HITRANS': {'dname': 'High Transfer Voltage', 'dunit': 26, 'dtype':243, 'dsubtype':8, 'options':'1;V', 'Used': True},
     'NOMINV': {'dname': 'Nominal Input Voltage', 'dunit': 27, 'dtype':243, 'dsubtype':8, 'options':'1;V', 'Used': False},
-    # Uitgeschakeld
-    #'ALARMDEL': {'dname': 'Alarm Delay', 'dunit': 28, 'dtype':243, 'dsubtype':19, 'Used': False},
-    #'XOFFBATT': {'dname': 'Off Battery Count', 'dunit': 29, 'dtype':243, 'dsubtype':19, 'Used': False},
-    #'STATFLAG': {'dname': 'Status Flags', 'dunit': 30, 'dtype':243, 'dsubtype':19, 'Used': False},
-    #'DRIVER': {'dname': 'Driver Info', 'dunit': 31, 'dtype':243, 'dsubtype':19, 'Used': False},
 }
 
 # ----------------------------
@@ -81,18 +96,21 @@ def UpdateDevice(Unit, nValue, sValue, BatteryLevel=None):
         if BatteryLevel is not None and dev.BatteryLevel != BatteryLevel:
             update_needed = True
 
+        DebugLog(f"Checking device {dev.Name}: nValue={nValue}, sValue={sValue}, BatteryLevel={BatteryLevel}, update_needed={update_needed}")
+
         if update_needed:
             kwargs = {"nValue": nValue, "sValue": str(sValue)}
             if BatteryLevel is not None:
                 kwargs["BatteryLevel"] = BatteryLevel
             dev.Update(**kwargs)
-            Domoticz.Debug(f"Updated device {dev.Name}: nValue={nValue}, sValue={sValue}, BatteryLevel={BatteryLevel}")
+            DebugLog(f"Updated device {dev.Name}: {kwargs}")
 
 # ----------------------------
 # onStart functie
 # ----------------------------
 def onStart():
     Domoticz.Log("Domoticz APC UPS plugin start")
+    DebugLog("Mode3 debug logging is ON")
 
     for key, val in values.items():
         iUnit = val['dunit']
@@ -107,20 +125,24 @@ def onStart():
                     Used=UsedFlag,
                     Options=val.get('options')
                 ).Create()
+                DebugLog(f"Created device {val['dname']} (Unit {iUnit})")
             except Exception as e:
                 Domoticz.Error(f"Failed to create device {val['dname']}: {e}")
 
     Domoticz.Heartbeat(int(Parameters["Mode1"]))
+    DebugLog(f"Heartbeat set to {Parameters['Mode1']} seconds")
 
 # ----------------------------
 # onHeartbeat functie
 # ----------------------------
 def onHeartbeat():
+    DebugLog("onHeartbeat: Fetching UPS data")
     try:
         res = subprocess.check_output(
             [Parameters["Mode2"], '-u', '-h', f"{Parameters['Address']}:{Parameters['Port']}"],
             text=True
         )
+        DebugLog(f"Raw UPS data received:\n{res}")
 
         battery_values = {}
         for line in res.strip().split('\n'):
@@ -130,15 +152,20 @@ def onHeartbeat():
 
             if val in ('', 'N/A', 'None'):
                 battery_values[key] = ''
+                DebugLog(f"{key} is empty or N/A")
                 continue
 
             try:
                 battery_values[key] = float(val)
+                DebugLog(f"{key} parsed as float: {battery_values[key]}")
             except ValueError:
                 battery_values[key] = val
+                DebugLog(f"{key} kept as string: {val}")
 
         batterylevel = int(battery_values.get('BCHARGE', -1)) if 'BCHARGE' in battery_values and battery_values['BCHARGE'] != '' else -1
+        DebugLog(f"Battery level calculated: {batterylevel}")
 
+        # Update devices en log alle veldwaarden
         for key, val in battery_values.items():
             if key in values:
                 iUnit = values[key]['dunit']
@@ -148,6 +175,9 @@ def onHeartbeat():
                     UpdateDevice(iUnit, nValue, sValue, BatteryLevel=batterylevel)
                 else:
                     UpdateDevice(iUnit, nValue, sValue)
+
+                # Extra debug log voor elk veld
+                DebugLog(f"Field: {key}, Value: {sValue}, Unit: {iUnit}, BatteryLevel: {batterylevel}")
 
     except Exception as err:
         Domoticz.Error("APC UPS Error: " + str(err))
