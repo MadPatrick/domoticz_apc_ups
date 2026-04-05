@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # ORIGINAL AUTHOR Joerek van Gaalen
 # Modified by MadPatrick
-# Version 1.5 - Added stability and better error handling
+# Version 1.7 - Fixed stderr capture, unit labels, heartbeat clamping, encoding fixes
 
 """
-<plugin key="APCUPS" name="APC UPS" author="MadPatrick" version="1.6" externallink="https://github.com/MadPatrick/APCUPS">
+<plugin key="APCUPS" name="APC UPS" author="MadPatrick" version="1.7" externallink="https://github.com/MadPatrick/APCUPS">
     <description>
         <br/><h2>APC UPS plugin</h2>
-        <strong>Version:</strong> 1.6<br/>
+        <strong>Version:</strong> 1.7<br/>
         <strong>Author:</strong> MadPatrick (Original: Joerek van Gaalen)<br/>
         <br/>
         <hr/>
@@ -68,8 +68,11 @@ import os
 imageID = 0
 
 def DebugLog(message):
-    if Parameters.get("Mode3") == "1":
-        Domoticz.Debug(message)
+    try:
+        if Parameters.get("Mode3") == "1":
+            Domoticz.Debug(message)
+    except Exception:
+        pass
 
 # Device definities
 # Used: 1 = zichtbaar in Domoticz, 0 = verborgen
@@ -112,7 +115,7 @@ def UpdateDevice(Unit, nValue, sValue, BatteryLevel=None):
             kwargs = {"nValue": nValue, "sValue": str(sValue)}
             if BatteryLevel is not None:
                 kwargs["BatteryLevel"] = int(BatteryLevel)
-            # FIX 6: Image niet meesturen bij updates â€” icoon alleen bij aanmaak zetten
+            # FIX 6: Image niet meesturen bij updates — icoon alleen bij aanmaak zetten
             # zodat een gebruiker het icoon niet kwijtraakt bij elke sensorupdate
             dev.Update(**kwargs)
             DebugLog(f"Device {dev.Name} (Unit {Unit}) updated.")
@@ -148,8 +151,10 @@ def onStart():
                 Domoticz.Error(f"Failed to create device {val['dname']}: {e}")
 
     # FIX 8: veilige parse van Mode1 zodat een ongeldige waarde niet crasht
+    # Interval wordt begrensd op 1–30 seconden (Domoticz-limiet)
     try:
-        Domoticz.Heartbeat(int(Parameters["Mode1"]))
+        interval = max(1, min(30, int(Parameters["Mode1"])))
+        Domoticz.Heartbeat(interval)
     except (ValueError, TypeError):
         Domoticz.Error("Mode1 (Reading Interval) is invalid, using default 10s")
         Domoticz.Heartbeat(10)
@@ -161,11 +166,12 @@ def onHeartbeat():
         return
 
     try:
-        # apcaccess aanroepen â€” -u verwijdert eenheden uit de output
+        # apcaccess aanroepen — -u verwijdert eenheden uit de output
         res = subprocess.check_output(
             [path, '-u', '-h', f"{Parameters['Address']}:{Parameters['Port']}"],
             text=True,
-            timeout=5
+            timeout=5,
+            stderr=subprocess.STDOUT
         )
 
         parsed_data = {}
@@ -193,6 +199,13 @@ def onHeartbeat():
             # Tekstvelden (subtype 19): bewaar de volledige string
             if config['dsubtype'] != 19:
                 clean_val = raw_val.split(' ')[0]
+                # TONBATT en CUMONBATT worden door apcaccess in seconden aangeleverd;
+                # converteer naar minuten zodat de eenheid (MIN) klopt
+                if key in ('TONBATT', 'CUMONBATT'):
+                    try:
+                        clean_val = str(round(float(clean_val) / 60, 2))
+                    except (ValueError, TypeError):
+                        pass
             else:
                 clean_val = raw_val
 
