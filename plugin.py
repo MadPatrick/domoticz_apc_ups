@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # ORIGINAL AUTHOR Joerek van Gaalen
 # Modified by MadPatrick
-# Version 1.7 - Fixed stderr capture, unit labels, heartbeat clamping, encoding fixes
+# Version 1.8 - Voltage sensor consistency fix, MAXTIME unit fix, encoding fix
 
 """
-<plugin key="APCUPS" name="APC UPS" author="MadPatrick" version="1.7" externallink="https://github.com/MadPatrick/APCUPS">
+<plugin key="APCUPS" name="APC UPS" author="MadPatrick" version="1.8" externallink="https://github.com/MadPatrick/APCUPS">
     <description>
         <br/><h2>APC UPS plugin</h2>
-        <strong>Version:</strong> 1.7<br/>
+        <strong>Version:</strong> 1.8<br/>
         <strong>Author:</strong> MadPatrick (Original: Joerek van Gaalen)<br/>
         <br/>
         <hr/>
@@ -101,9 +101,9 @@ values = {
     'MINTIMEL':  {'dname': 'Minimum Battery Time',      'dunit': 22, 'dtype': 243, 'dsubtype': 31, 'options': {'Custom': '1;MIN'}, 'Used': 0},
     'MAXTIME':   {'dname': 'Maximum Battery Time',      'dunit': 23, 'dtype': 243, 'dsubtype': 31, 'options': {'Custom': '1;MIN'}, 'Used': 0},
     'SENSE':     {'dname': 'Voltage Sense',             'dunit': 24, 'dtype': 243, 'dsubtype': 19, 'Used': 0},
-    'LOTRANS':   {'dname': 'Low Transfer Voltage',      'dunit': 25, 'dtype': 243, 'dsubtype':  8, 'options': {'Custom': '1;V'},       'Used': 1},
-    'HITRANS':   {'dname': 'High Transfer Voltage',     'dunit': 26, 'dtype': 243, 'dsubtype':  8, 'options': {'Custom': '1;V'},       'Used': 1},
-    'NOMINV':    {'dname': 'Nominal Input Voltage',     'dunit': 27, 'dtype': 243, 'dsubtype':  8, 'options': {'Custom': '1;V'},       'Used': 0},
+    'LOTRANS':   {'dname': 'Low Transfer Voltage',      'dunit': 25, 'dtype': 243, 'dsubtype':  8, 'Used': 1},
+    'HITRANS':   {'dname': 'High Transfer Voltage',     'dunit': 26, 'dtype': 243, 'dsubtype':  8, 'Used': 1},
+    'NOMINV':    {'dname': 'Nominal Input Voltage',     'dunit': 27, 'dtype': 243, 'dsubtype':  8, 'Used': 0},
 }
 
 def UpdateDevice(Unit, nValue, sValue, BatteryLevel=None):
@@ -169,7 +169,7 @@ def onHeartbeat():
         # apcaccess aanroepen — -u verwijdert eenheden uit de output
         res = subprocess.check_output(
             [path, '-u', '-h', f"{Parameters['Address']}:{Parameters['Port']}"],
-            text=True,
+            encoding='utf-8',
             timeout=5,
             stderr=subprocess.STDOUT
         )
@@ -199,9 +199,9 @@ def onHeartbeat():
             # Tekstvelden (subtype 19): bewaar de volledige string
             if config['dsubtype'] != 19:
                 clean_val = raw_val.split(' ')[0]
-                # TONBATT en CUMONBATT worden door apcaccess in seconden aangeleverd;
+                # TONBATT, CUMONBATT en MAXTIME worden door apcaccess in seconden aangeleverd;
                 # converteer naar minuten zodat de eenheid (MIN) klopt
-                if key in ('TONBATT', 'CUMONBATT'):
+                if key in ('TONBATT', 'CUMONBATT', 'MAXTIME'):
                     try:
                         clean_val = str(round(float(clean_val) / 60, 2))
                     except (ValueError, TypeError):
