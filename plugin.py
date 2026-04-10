@@ -169,7 +169,6 @@ def onHeartbeat():
         # apcaccess aanroepen — -u verwijdert eenheden uit de output
         res = subprocess.check_output(
             [path, '-u', '-h', f"{Parameters['Address']}:{Parameters['Port']}"],
-            text=True,
             encoding='utf-8',
             timeout=5,
             stderr=subprocess.STDOUT
