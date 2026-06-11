@@ -53,7 +53,7 @@ Clone the plugin into the Domoticz `plugins` directory:
 
 ```bash
 cd domoticz/plugins
-git clone https://github.com/MadPatrick/domoticz_apc_ups apc-ups
+git clone https://github.com/MadPatrick/domoticz_apc_ups apc_ups
 sudo systemctl restart domoticz
 ```
 
@@ -73,6 +73,7 @@ Open **Domoticz → Hardware** and add:
 | Port | UPS port number (default: 3551) |
 | Reading Interval | Polling interval in seconds |
 | apcaccess path | Full path to the `apcaccess` binary (default: `/sbin/apcaccess`) |
+| Debug Logging | Verbose plugin logging (`Nee` / `Ja`) |
 
 Once saved, Domoticz will create devices based on detected UPS parameters.
 
@@ -103,7 +104,7 @@ Unused fields are created but disabled by default — enable only what you need.
 ## 🔄 Updating the Plugin
 
 ```bash
-cd domoticz/plugins/domoticz_apc_ups
+cd domoticz/plugins/apc-ups
 git pull
 sudo systemctl restart domoticz
 ```

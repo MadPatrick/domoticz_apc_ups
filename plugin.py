@@ -1,15 +1,13 @@
 #!/usr/bin/env python
 # ORIGINAL AUTHOR Joerek van Gaalen
 # Modified by MadPatrick
-# Version 1.8 - Voltage sensor consistency fix, MAXTIME unit fix, encoding fix
+# Version 1.9 - Reliability fixes, debug label localization
 
 """
-<plugin key="APCUPS" name="APC UPS" author="MadPatrick" version="1.8" externallink="https://github.com/MadPatrick/domoticz_apc_ups">
+<plugin key="APCUPS" name="APC UPS" author="MadPatrick" version="1.9" externallink="https://github.com/MadPatrick/domoticz_apc_ups">
     <description>
         <br/><h2>APC UPS plugin</h2>
-        <strong>Version:</strong> 1.8<br/>
-        <strong>Author:</strong> MadPatrick (Original: Joerek van Gaalen)<br/>
-        <br/>
+        Version: 1.9<br/>
     </description>
     <params>
         <param field="Address" label="IP Address" width="200px" required="true" default="127.0.0.1"/>
@@ -18,8 +16,8 @@
         <param field="Mode2" label="APC Access Path" width="200px" required="true" default="/sbin/apcaccess" />
         <param field="Mode3" label="Enable Debug Logging" width="75px">
             <options>
-                <option label="Off" value="0" default="true" />
-                <option label="On" value="1" />
+                <option label="Nee" value="0" default="true" />
+                <option label="Ja" value="1" />
             </options>
         </param>
     </params>
@@ -81,14 +79,27 @@ def UpdateDevice(Unit, nValue, sValue, BatteryLevel=None):
             dev.Update(**kwargs)
             DebugLog(f"Device {dev.Name} (Unit {Unit}) updated.")
 
+def SetStatusError(message):
+    try:
+        UpdateDevice(values['STATUS']['dunit'], 0, message)
+    except Exception as err:
+        Domoticz.Error(f"Failed to update status device: {err}")
+
 def onStart():
     global imageID
     Domoticz.Log(f"APC UPS Plugin started - version {Parameters['Version']}")
+    try:
+        Domoticz.Debugging(1 if Parameters.get("Mode3") == "1" else 0)
+    except Exception:
+        pass
 
     # Icon setup
     _IMAGE = "UPS"
-    if _IMAGE not in Images:
-        Domoticz.Image(_IMAGE + ".zip").Create()
+    try:
+        if _IMAGE not in Images:
+            Domoticz.Image(_IMAGE + ".zip").Create()
+    except Exception as e:
+        Domoticz.Error(f"Failed to load icon pack '{_IMAGE}.zip': {e}")
     if _IMAGE in Images:
         imageID = Images[_IMAGE].ID
         DebugLog(f"Icon loaded (ImageID={imageID})")
@@ -111,37 +122,58 @@ def onStart():
                 Domoticz.Error(f"Failed to create device {val['dname']}: {e}")
 
     try:
-        interval = max(1, min(30, int(Parameters["Mode1"])))
+        interval = int(Parameters["Mode1"])
+        if interval < 1:
+            Domoticz.Error("Mode1 (Reading Interval) below 1s, using 1s")
+            interval = 1
         Domoticz.Heartbeat(interval)
     except (ValueError, TypeError):
         Domoticz.Error("Mode1 (Reading Interval) is invalid, using default 10s")
         Domoticz.Heartbeat(10)
 
+def ParseBatteryLevel(raw_charge):
+    if raw_charge is None:
+        return None
+    try:
+        clean_charge = ''.join(c for c in str(raw_charge) if c.isdigit() or c == '.')
+        if clean_charge == "":
+            return None
+        return max(0, min(100, int(float(clean_charge))))
+    except (ValueError, TypeError):
+        return None
+
 def onHeartbeat():
-    path = Parameters["Mode2"]
+    path = Parameters.get("Mode2", "").strip()
+    if not path:
+        Domoticz.Error("APC Access Path is empty. Please check plugin settings!")
+        SetStatusError("apcaccess path missing")
+        return
     if not os.path.exists(path):
         Domoticz.Error(f"'{path}' not found. Please check 'APC Access Path' in settings!")
+        SetStatusError("apcaccess not found")
+        return
+    if not os.access(path, os.X_OK):
+        Domoticz.Error(f"'{path}' is not executable. Please check permissions!")
+        SetStatusError("apcaccess not executable")
         return
 
     try:
         res = subprocess.check_output(
             [path, '-u', '-h', f"{Parameters['Address']}:{Parameters['Port']}"],
             encoding='utf-8',
+            errors='replace',
             timeout=5,
             stderr=subprocess.STDOUT
         )
 
         parsed_data = {}
-        for line in res.strip().split('\n'):
-            key, _, val = line.partition(': ')
+        for line in res.strip().splitlines():
+            key, sep, val = line.partition(':')
+            if not sep:
+                continue
             parsed_data[key.strip()] = val.strip()
 
-        raw_charge = parsed_data.get('BCHARGE', '100')
-        try:
-            clean_charge = ''.join(c for c in raw_charge if c.isdigit() or c == '.')
-            batt_level = int(float(clean_charge))
-        except (ValueError, TypeError):
-            batt_level = 100
+        batt_level = ParseBatteryLevel(parsed_data.get('BCHARGE'))
 
         for key, config in values.items():
             if key not in parsed_data:
@@ -152,7 +184,7 @@ def onHeartbeat():
                 continue
 
             if config['dsubtype'] != 19:
-                clean_val = raw_val.split(' ')[0]
+                clean_val = raw_val.split()[0]
                 if key in ('TONBATT', 'CUMONBATT', 'MAXTIME'):
                     try:
                         clean_val = str(round(float(clean_val) / 60, 2))
@@ -164,10 +196,13 @@ def onHeartbeat():
             UpdateDevice(config['dunit'], 0, clean_val, BatteryLevel=batt_level)
 
     except subprocess.TimeoutExpired:
+        SetStatusError("Connection timeout")
         Domoticz.Error("Connection Timeout: UPS via apcaccess unreachable")
     except subprocess.CalledProcessError as e:
+        SetStatusError("apcaccess error")
         Domoticz.Error(f"apcaccess returned error (exit {e.returncode}): {e.output}")
     except Exception as err:
+        SetStatusError("Plugin error")
         Domoticz.Error(f"Unexpected error in onHeartbeat: {err}")
 
 def onStop():
