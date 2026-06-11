@@ -4,50 +4,15 @@
 # Version 1.8 - Voltage sensor consistency fix, MAXTIME unit fix, encoding fix
 
 """
-<plugin key="APCUPS" name="APC UPS" author="MadPatrick" version="1.8" externallink="https://github.com/MadPatrick/APCUPS">
+<plugin key="APCUPS" name="APC UPS" author="MadPatrick" version="1.8" externallink="https://github.com/MadPatrick/domoticz_apc_ups">
     <description>
         <br/><h2>APC UPS plugin</h2>
         <strong>Version:</strong> 1.8<br/>
         <strong>Author:</strong> MadPatrick (Original: Joerek van Gaalen)<br/>
         <br/>
-        <hr/>
-        <br/>
-        <h2>= Configuration =</h2>
-        <br/>
-        <table style="width:100%; text-align:left; border-collapse: collapse;">
-            <thead>
-                <tr style="border-bottom: 1px solid #ccc;">
-                    <th style="padding: 8px;">Setting</th>
-                    <th style="padding: 8px;">Description</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td style="padding: 8px;"><b>Address</b></td>
-                    <td style="padding: 8px;">Fill in the IP address of the UPS.</td>
-                </tr>
-                <tr>
-                    <td style="padding: 8px;"><b>Port</b></td>
-                    <td style="padding: 8px;">Fill in the port address of the UPS.</td>
-                </tr>
-                <tr>
-                    <td style="padding: 8px;"><b>Reading Interval</b></td>
-                    <td style="padding: 8px;">Time (in sec) for the next refresh.</td>
-                </tr>
-                <tr>
-                    <td style="padding: 8px;"><b>APC access path</b></td>
-                    <td style="padding: 8px;">Location of the APC software on the system.</td>
-                </tr>
-                <tr>
-                    <td style="padding: 8px;"><b>Debug Log</b></td>
-                    <td style="padding: 8px;">Enable or disable debug logging.</td>
-                </tr>
-            </tbody>
-        </table>
-        <br/>
     </description>
     <params>
-        <param field="Address" label="UPS IP Address" width="200px" required="true" default="127.0.0.1"/>
+        <param field="Address" label="IP Address" width="200px" required="true" default="127.0.0.1"/>
         <param field="Port" label="Port" width="40px" required="true" default="3551"/>
         <param field="Mode1" label="Reading Interval (sec)" width="40px" required="true" default="10" />
         <param field="Mode2" label="APC Access Path" width="200px" required="true" default="/sbin/apcaccess" />
@@ -64,7 +29,6 @@ import Domoticz
 import subprocess
 import os
 
-# FIX 1: imageID als globale variabele met expliciete global declaratie waar nodig
 imageID = 0
 
 def DebugLog(message):
@@ -109,14 +73,11 @@ values = {
 def UpdateDevice(Unit, nValue, sValue, BatteryLevel=None):
     if Unit in Devices:
         dev = Devices[Unit]
-        # Alleen updaten bij wijziging om database-vervuiling te voorkomen
         if (dev.nValue != nValue) or (dev.sValue != str(sValue)) or \
            (BatteryLevel is not None and dev.BatteryLevel != BatteryLevel):
             kwargs = {"nValue": nValue, "sValue": str(sValue)}
             if BatteryLevel is not None:
                 kwargs["BatteryLevel"] = int(BatteryLevel)
-            # FIX 6: Image niet meesturen bij updates — icoon alleen bij aanmaak zetten
-            # zodat een gebruiker het icoon niet kwijtraakt bij elke sensorupdate
             dev.Update(**kwargs)
             DebugLog(f"Device {dev.Name} (Unit {Unit}) updated.")
 
@@ -132,7 +93,6 @@ def onStart():
         imageID = Images[_IMAGE].ID
         DebugLog(f"Icon loaded (ImageID={imageID})")
     else:
-        # FIX 5: foutmelding als icon pack niet geladen kan worden
         Domoticz.Log(f"Unable to load icon pack '{_IMAGE}.zip', continuing without custom icon")
 
     for key, val in values.items():
@@ -150,8 +110,6 @@ def onStart():
             except Exception as e:
                 Domoticz.Error(f"Failed to create device {val['dname']}: {e}")
 
-    # FIX 8: veilige parse van Mode1 zodat een ongeldige waarde niet crasht
-    # Interval wordt begrensd op 1–30 seconden (Domoticz-limiet)
     try:
         interval = max(1, min(30, int(Parameters["Mode1"])))
         Domoticz.Heartbeat(interval)
@@ -166,7 +124,6 @@ def onHeartbeat():
         return
 
     try:
-        # apcaccess aanroepen — -u verwijdert eenheden uit de output
         res = subprocess.check_output(
             [path, '-u', '-h', f"{Parameters['Address']}:{Parameters['Port']}"],
             encoding='utf-8',
@@ -179,7 +136,6 @@ def onHeartbeat():
             key, _, val = line.partition(': ')
             parsed_data[key.strip()] = val.strip()
 
-        # Batterij percentage bepalen voor de icoontjes/status
         raw_charge = parsed_data.get('BCHARGE', '100')
         try:
             clean_charge = ''.join(c for c in raw_charge if c.isdigit() or c == '.')
@@ -195,12 +151,8 @@ def onHeartbeat():
             if raw_val.upper() in ('N/A', 'NONE', ''):
                 continue
 
-            # Numerieke velden: verwijder eventuele eenheden (bijv. "230.0 Volts" -> "230.0")
-            # Tekstvelden (subtype 19): bewaar de volledige string
             if config['dsubtype'] != 19:
                 clean_val = raw_val.split(' ')[0]
-                # TONBATT, CUMONBATT en MAXTIME worden door apcaccess in seconden aangeleverd;
-                # converteer naar minuten zodat de eenheid (MIN) klopt
                 if key in ('TONBATT', 'CUMONBATT', 'MAXTIME'):
                     try:
                         clean_val = str(round(float(clean_val) / 60, 2))
@@ -213,7 +165,6 @@ def onHeartbeat():
 
     except subprocess.TimeoutExpired:
         Domoticz.Error("Connection Timeout: UPS via apcaccess unreachable")
-    # FIX 9: specifieke except voor niet-nul exitcode van apcaccess
     except subprocess.CalledProcessError as e:
         Domoticz.Error(f"apcaccess returned error (exit {e.returncode}): {e.output}")
     except Exception as err:
