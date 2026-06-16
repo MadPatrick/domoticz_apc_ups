@@ -4,10 +4,10 @@
 # Version 1.9 - Reliability fixes, debug label localization
 
 """
-<plugin key="APCUPS" name="APC UPS" author="Joerek van Gaalen" version="1.9" externallink="https://github.com/jgaalen/domoticz-apc-ups-plugin">
+<plugin key="APCUPS" name="APC UPS" author="Joerek van Gaalen" version="1.0" externallink="https://github.com/jgaalen/domoticz-apc-ups-plugin">
     <description>
         <br/><h2>APC UPS plugin</h2>
-        Version: 1.9<br/>
+        Version: 1.0<br/>
     </description>
     <params>
         <param field="Address" label="IP Address" width="200px" required="true" default="127.0.0.1"/>
