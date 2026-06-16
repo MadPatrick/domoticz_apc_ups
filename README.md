@@ -9,7 +9,7 @@ This Domoticz plugin allows you to monitor an **APC UPS** using the `apcaccess` 
 It retrieves real-time UPS metrics including battery level, load percentage, input voltage, runtime remaining, transfer reasons, and much more.
 
 > Original author of the base implementation: **Joerek van Gaalen**  
-> Extended, modernized and maintained by **MadPatrick**
+> Extended, modernized by **MadPatrick**
 
 ---
 
