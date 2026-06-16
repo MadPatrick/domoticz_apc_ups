@@ -4,7 +4,7 @@
 # Version 1.9 - Reliability fixes, debug label localization
 
 """
-<plugin key="APCUPS" name="APC UPS" author="MadPatrick" version="1.9" externallink="https://github.com/MadPatrick/domoticz_apc_ups">
+<plugin key="APCUPS" name="APC UPS" author="Joerek van Gaalen" version="1.9" externallink="https://github.com/jgaalen/domoticz-apc-ups-plugin">
     <description>
         <br/><h2>APC UPS plugin</h2>
         Version: 1.9<br/>
