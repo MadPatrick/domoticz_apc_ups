@@ -1,4 +1,4 @@
-# 🔋 APC UPS Plugin for Domoticz
+# 🔋 APC UPS Plugin for Domoticz (MOD)
 
 ![Status](https://img.shields.io/badge/Status-Stable-brightgreen)
 ![Domoticz](https://img.shields.io/badge/Domoticz-2022%2B-blue)
