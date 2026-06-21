@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 # ORIGINAL AUTHOR Joerek van Gaalen
 # Modified by MadPatrick
-# Version 1.9 - Reliability fixes, debug label localization
+# Version 1.0 - Reliability fixes, debug label localization
 
 """
-<plugin key="APCUPS" name="APC UPS" author="Joerek van Gaalen" version="1.0" externallink="https://github.com/jgaalen/domoticz-apc-ups-plugin">
+<plugin key="APCUPS" name="APC UPS" author="Joerek van Gaalen" version="1.0" externallink="https://github.com/jgaalen/domoticz-apc-ups-plugin" wikilink="https://github.com/MadPatrick/domoticz_apc_ups" >
     <description>
         <br/><h2>APC UPS plugin</h2>
         Version: 1.0<br/>
